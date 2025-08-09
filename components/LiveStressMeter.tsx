@@ -4,22 +4,77 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, TrendingUp, TrendingDown, Minus, AlertTriangle, Heart } from 'lucide-react';
 
+// Define strict types for color values
+type ColorKey = 'red' | 'orange' | 'yellow' | 'green';
+type TrendKey = 'increasing' | 'decreasing' | 'stable';
+type AnimationKey = 'warning-pulse' | 'pulse-stress' | 'heartbeat' | 'none';
+
 interface StressMeterData {
   current: number;
   percentage: number;
-  color: string;
+  color: ColorKey;
   label: string;
-  animation: string;
-  trend: string;
+  animation: AnimationKey;
+  trend: TrendKey;
 }
 
 interface LiveStressMeterProps {
-  stressMeter: StressMeterData;
+  stressMeter: StressMeterData | null;
   isActive?: boolean;
   showDetails?: boolean;
 }
 
-export default function LiveStressMeter({ stressMeter, isActive = false, showDetails = true }: LiveStressMeterProps) {
+// Strongly typed color configuration
+const colorClassesMap: Record<ColorKey, { 
+  bg: string; 
+  glow: string; 
+  border: string; 
+  text: string; 
+}> = {
+  red: {
+    bg: 'from-red-600 via-red-500 to-red-700',
+    glow: 'shadow-red-500/50',
+    border: 'border-red-400/50',
+    text: 'text-red-300'
+  },
+  orange: {
+    bg: 'from-orange-500 via-orange-400 to-red-600',
+    glow: 'shadow-orange-500/50',
+    border: 'border-orange-400/50',
+    text: 'text-orange-300'
+  },
+  yellow: {
+    bg: 'from-yellow-500 via-yellow-400 to-orange-500',
+    glow: 'shadow-yellow-500/50',
+    border: 'border-yellow-400/50',
+    text: 'text-yellow-300'
+  },
+  green: {
+    bg: 'from-green-500 via-green-400 to-emerald-500',
+    glow: 'shadow-green-500/50',
+    border: 'border-green-400/50',
+    text: 'text-green-300'
+  }
+};
+
+// Type-safe color class getter
+function getColorClasses(color: ColorKey): typeof colorClassesMap[ColorKey] {
+  return colorClassesMap[color];
+}
+
+// Helper function to determine color from stress level
+function getColorFromLevel(level: number): ColorKey {
+  if (level >= 8) return 'red';
+  if (level >= 6) return 'orange';
+  if (level >= 4) return 'yellow';
+  return 'green';
+}
+
+export default function LiveStressMeter({ 
+  stressMeter, 
+  isActive = false, 
+  showDetails = true 
+}: LiveStressMeterProps) {
   const [currentLevel, setCurrentLevel] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -42,37 +97,7 @@ export default function LiveStressMeter({ stressMeter, isActive = false, showDet
     );
   }
 
-  const getColorClasses = (color: string, level: number) => {
-    const colors = {
-      red: {
-        bg: 'from-red-600 via-red-500 to-red-700',
-        glow: 'shadow-red-500/50',
-        border: 'border-red-400/50',
-        text: 'text-red-300'
-      },
-      orange: {
-        bg: 'from-orange-500 via-orange-400 to-red-600',
-        glow: 'shadow-orange-500/50',
-        border: 'border-orange-400/50',
-        text: 'text-orange-300'
-      },
-      yellow: {
-        bg: 'from-yellow-500 via-yellow-400 to-orange-500',
-        glow: 'shadow-yellow-500/50',
-        border: 'border-yellow-400/50',
-        text: 'text-yellow-300'
-      },
-      green: {
-        bg: 'from-green-500 via-green-400 to-emerald-500',
-        glow: 'shadow-green-500/50',
-        border: 'border-green-400/50',
-        text: 'text-green-300'
-      }
-    };
-    return colors[color] || colors.yellow;
-  };
-
-  const colorClasses = getColorClasses(stressMeter.color, currentLevel);
+  const colorClasses = getColorClasses(stressMeter.color);
   const percentage = (currentLevel / 10) * 100;
 
   const getTrendIcon = () => {
@@ -83,11 +108,13 @@ export default function LiveStressMeter({ stressMeter, isActive = false, showDet
     }
   };
 
-  const getAnimationClass = () => {
-    if (currentLevel >= 8) return 'animate-warning-pulse';
-    if (currentLevel >= 6) return 'animate-pulse-stress';
-    if (currentLevel >= 4) return 'animate-heartbeat';
-    return '';
+  const getAnimationClass = (): string => {
+    switch (stressMeter.animation) {
+      case 'warning-pulse': return 'animate-warning-pulse';
+      case 'pulse-stress': return 'animate-pulse-stress';
+      case 'heartbeat': return 'animate-heartbeat';
+      default: return '';
+    }
   };
 
   return (
@@ -217,3 +244,7 @@ export default function LiveStressMeter({ stressMeter, isActive = false, showDet
     </div>
   );
 }
+
+// Export types for use in other components
+export type { StressMeterData, ColorKey, TrendKey, AnimationKey };
+export { getColorFromLevel };

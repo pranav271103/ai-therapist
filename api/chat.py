@@ -28,7 +28,14 @@ def handler(request):
                 'body': json.dumps({
                     'status': 'error',
                     'response': 'AI system initialization failed. Please try again.',
-                    'stress_meter': {'current': 5, 'trend': 'stable', 'color': 'yellow'},
+                    'stress_meter': {
+                        'current': 5, 
+                        'percentage': 50,
+                        'color': 'yellow', 
+                        'label': 'Baseline',
+                        'animation': 'none',
+                        'trend': 'stable'
+                    },
                     'error': str(e)
                 })
             }
@@ -90,14 +97,59 @@ def handler(request):
             response_data = captured_response.get('response_data', {})
             current_stress = emotion_data.get('stress_level', 5)
             
-            # Enhanced stress meter data
+            # Helper function to get valid color string
+            def get_stress_color(stress_level):
+                if stress_level >= 8:
+                    return 'red'
+                elif stress_level >= 6:
+                    return 'orange'
+                elif stress_level >= 4:
+                    return 'yellow'
+                else:
+                    return 'green'
+            
+            # Helper function to get valid animation string
+            def get_stress_animation(stress_level):
+                if stress_level >= 8:
+                    return 'warning-pulse'
+                elif stress_level >= 6:
+                    return 'pulse-stress'
+                elif stress_level >= 4:
+                    return 'heartbeat'
+                else:
+                    return 'none'
+            
+            # Helper function to get stress label
+            def get_stress_label(stress_level):
+                if stress_level >= 9:
+                    return 'Crisis'
+                elif stress_level >= 7:
+                    return 'High Stress'
+                elif stress_level >= 5:
+                    return 'Moderate'
+                elif stress_level >= 3:
+                    return 'Low Stress'
+                else:
+                    return 'Calm'
+            
+            # Determine trend
+            conversations = therapist.memory_manager.conversations
+            trend = 'stable'
+            if len(conversations) > 1:
+                prev_stress = conversations[-2].get('stress_level', 5)
+                if current_stress > prev_stress:
+                    trend = 'increasing'
+                elif current_stress < prev_stress:
+                    trend = 'decreasing'
+            
+            # Enhanced stress meter data with proper typing
             stress_meter = {
                 'current': current_stress,
                 'percentage': (current_stress / 10) * 100,
-                'color': 'red' if current_stress >= 8 else 'orange' if current_stress >= 6 else 'yellow' if current_stress >= 4 else 'green',
-                'label': 'Crisis' if current_stress >= 9 else 'High Stress' if current_stress >= 7 else 'Moderate' if current_stress >= 5 else 'Low Stress' if current_stress >= 3 else 'Calm',
-                'animation': 'warning-pulse' if current_stress >= 8 else 'pulse-stress' if current_stress >= 6 else 'heartbeat' if current_stress >= 4 else 'none',
-                'trend': 'increasing' if len(therapist.memory_manager.conversations) > 1 and current_stress > therapist.memory_manager.conversations[-2].get('stress_level', 5) else 'stable'
+                'color': get_stress_color(current_stress),
+                'label': get_stress_label(current_stress),
+                'animation': get_stress_animation(current_stress),
+                'trend': trend
             }
             
             return {
@@ -138,7 +190,14 @@ def handler(request):
                 'body': json.dumps({
                     'status': 'error',
                     'response': 'I apologize for the technical difficulty. I\'m still here to support you.',
-                    'stress_meter': {'current': 5, 'trend': 'stable', 'color': 'yellow'},
+                    'stress_meter': {
+                        'current': 5, 
+                        'percentage': 50,
+                        'color': 'yellow',
+                        'label': 'Error State',
+                        'animation': 'none',
+                        'trend': 'stable'
+                    },
                     'error': str(e)
                 })
             }
