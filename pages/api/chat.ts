@@ -57,14 +57,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'I hear you and I\'m here to support you.'
 
     // Simple stress level estimation (replace with your complex logic)
-    const stressKeywords = ['stressed', 'anxious', 'worried', 'panic', 'overwhelmed', 'crisis', 'depressed', 'sad', 'angry', 'frustrated']
-    const messageWords = message.toLowerCase().split(' ')
+    const stressKeywords: string[] = ['stressed', 'anxious', 'worried', 'panic', 'overwhelmed', 'crisis', 'depressed', 'sad', 'angry', 'frustrated']
+    const messageWords: string[] = message.toLowerCase().split(' ')
     const stressMatches = messageWords.filter(word => stressKeywords.some(keyword => word.includes(keyword)))
     const baseStress = Math.min(Math.max(stressMatches.length + 3, 1), 10)
-    
-    // Simulate emotion analysis
-    const emotions = ['neutral', 'happy', 'sad', 'anxious', 'angry', 'frustrated', 'hopeful']
-    const primaryEmotion = stressMatches.length > 0 ? 'anxious' : emotions[Math.floor(Math.random() * emotions.length)]
 
     // Helper functions for stress meter
     const getStressColor = (level: number) => {
