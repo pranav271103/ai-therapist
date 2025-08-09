@@ -1,29 +1,9 @@
 {
-    "builds": [
-      {
-        "src": "api/*.py",
-        "use": "@vercel/python"
-      },
-      {
-        "src": "package.json",
-        "use": "@vercel/next"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api/(.*)",
-        "dest": "/api/$1"
-      },
-      {
-        "src": "/(.*)",
-        "dest": "/$1"
-      }
-    ],
-    "functions": {
-      "api/*.py": {
-        "runtime": "python3.9",
-        "memory": 512
-      }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/*.py": {
+      "memory": 1024,
+      "maxDuration": 60
     }
   }
-  
+}
