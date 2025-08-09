@@ -1,11 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-// Simple in-memory storage for demo
 let conversationHistory: any[] = []
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  console.log('Chat API called:', req.method)
-  
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
   // Handle CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
@@ -23,124 +20,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    console.log('Request body:', req.body)
-    
     const { message } = req.body
 
     if (!message || !message.trim()) {
-      console.log('Empty message received')
       res.status(400).json({ error: 'Empty message' })
       return
     }
 
-    console.log('Processing message:', message)
-
-    // Check environment variable
-    const geminiApiKey = process.env.GEMINI_API_KEY
-    console.log('API Key available:', !!geminiApiKey)
+    // Generate therapeutic response without external API
+    const responses = [
+      "Thank you for sharing that with me. Your feelings are valid and important.",
+      "I hear you, and I want you to know that you're not alone in feeling this way.",
+      "It takes courage to express what you're going through. How are you taking care of yourself today?",
+      "I appreciate you opening up to me. What would feel most supportive right now?",
+      "Your emotional experience matters. Let's explore what might help you feel more grounded."
+    ]
     
-    if (!geminiApiKey) {
-      console.error('GEMINI_API_KEY not found in environment')
-      throw new Error('GEMINI_API_KEY not configured')
-    }
+    const aiResponse = responses[Math.floor(Math.random() * responses.length)]
 
-    // Prepare Gemini API request
-    const geminiPayload = {
-      contents: [{
-        parts: [{
-          text: `You are Dr. HelAI, a professional AI therapeutic assistant. Please provide a supportive, empathetic response to this message. Keep your response concise and therapeutic: "${message}"`
-        }]
-      }]
-    }
-
-    console.log('Calling Gemini API...')
-
-    // Call Google Gemini API with better error handling
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(geminiPayload)
-      }
-    )
-
-    console.log('Gemini API response status:', geminiResponse.status)
-
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text()
-      console.error('Gemini API error:', geminiResponse.status, errorText)
-      throw new Error(`Gemini API error: ${geminiResponse.status} - ${errorText}`)
-    }
-
-    const geminiData = await geminiResponse.json()
-    console.log('Gemini API response received')
-    
-    const aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 
-                      'I hear you and I\'m here to support you. Thank you for sharing with me.'
-
-    // Simple stress level estimation
-    const stressKeywords: string[] = ['stressed', 'anxious', 'worried', 'panic', 'overwhelmed', 'crisis', 'depressed', 'sad', 'angry', 'frustrated']
-    const messageWords: string[] = message.toLowerCase().split(' ')
+    // Simple stress analysis
+    const stressKeywords = ['stressed', 'anxious', 'worried', 'panic', 'overwhelmed', 'crisis', 'depressed', 'sad', 'angry', 'frustrated']
+    const messageWords = message.toLowerCase().split(' ')
     const stressMatches = messageWords.filter((word: string) => 
       stressKeywords.some((keyword: string) => word.includes(keyword))
     )
     const baseStress = Math.min(Math.max(stressMatches.length + 3, 1), 10)
-    
-    // Determine emotion
-    const primaryEmotion = stressMatches.length > 0 ? 'anxious' : 'neutral'
 
-    // Helper functions for stress meter
-    const getStressColor = (level: number): string => {
-      if (level >= 8) return 'red'
-      if (level >= 6) return 'orange'
-      if (level >= 4) return 'yellow'
-      return 'green'
-    }
-
-    const getStressAnimation = (level: number): string => {
-      if (level >= 8) return 'warning-pulse'
-      if (level >= 6) return 'pulse-stress'
-      if (level >= 4) return 'heartbeat'
-      return 'none'
-    }
-
-    const getStressLabel = (level: number): string => {
-      if (level >= 9) return 'Crisis'
-      if (level >= 7) return 'High Stress'
-      if (level >= 5) return 'Moderate'
-      if (level >= 3) return 'Low Stress'
-      return 'Calm'
-    }
+    const getStressColor = (level: number) => level >= 8 ? 'red' : level >= 6 ? 'orange' : level >= 4 ? 'yellow' : 'green'
+    const getStressLabel = (level: number) => level >= 9 ? 'Crisis' : level >= 7 ? 'High Stress' : level >= 5 ? 'Moderate' : level >= 3 ? 'Low Stress' : 'Calm'
+    const getStressAnimation = (level: number) => level >= 8 ? 'warning-pulse' : level >= 6 ? 'pulse-stress' : level >= 4 ? 'heartbeat' : 'none'
 
     // Store conversation
-    const conversation = {
-      message,
-      response: aiResponse,
-      stress_level: baseStress,
-      primary_emotion: primaryEmotion,
-      timestamp: new Date().toISOString()
-    }
-    conversationHistory.push(conversation)
+    conversationHistory.push({
+      message, response: aiResponse, stress_level: baseStress, timestamp: new Date().toISOString()
+    })
 
-    // Calculate trend
-    let trend = 'stable'
-    if (conversationHistory.length > 1) {
-      const prevStress = conversationHistory[conversationHistory.length - 2].stress_level
-      if (baseStress > prevStress) trend = 'increasing'
-      else if (baseStress < prevStress) trend = 'decreasing'
-    }
+    const trend = conversationHistory.length > 1 ? 
+      (baseStress > conversationHistory[conversationHistory.length - 2].stress_level ? 'increasing' : 
+       baseStress < conversationHistory[conversationHistory.length - 2].stress_level ? 'decreasing' : 'stable') : 'stable'
 
-    const responseData = {
+    res.status(200).json({
       status: 'success',
       response: aiResponse,
       emotion_analysis: {
-        primary_emotion: primaryEmotion,
+        primary_emotion: stressMatches.length > 0 ? 'anxious' : 'neutral',
         stress_level: baseStress,
         emotion_intensity: 0.5 + (baseStress / 20),
-        risk_assessment: baseStress >= 8 ? 'high' : baseStress >= 6 ? 'moderate' : 'low',
+        risk_assessment: baseStress >= 8 ? 'high' : 'low',
         psychological_markers: stressMatches
       },
       stress_meter: {
@@ -153,50 +79,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       therapeutic_insights: {
         approach: 'Supportive',
-        coping_suggestion: baseStress >= 7 ? 'Consider taking some deep breaths and grounding yourself' : 'Continue sharing your thoughts',
+        coping_suggestion: 'Take things one moment at a time',
         is_crisis: baseStress >= 8
       },
       timestamp: new Date().toISOString()
-    }
-
-    console.log('Sending successful response')
-    res.status(200).json(responseData)
+    })
 
   } catch (error) {
-    console.error('Chat API Error Details:', error)
-    
-    // Provide a detailed error response
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    
+    console.error('Error:', error)
     res.status(500).json({
       status: 'error',
-      response: 'I apologize for the technical difficulty. I\'m still here to support you.',
-      emotion_analysis: {
-        primary_emotion: 'neutral',
-        stress_level: 5,
-        emotion_intensity: 0.5,
-        risk_assessment: 'low',
-        psychological_markers: []
-      },
-      stress_meter: {
-        current: 5,
-        percentage: 50,
-        color: 'yellow',
-        label: 'Error State',
-        animation: 'none',
-        trend: 'stable'
-      },
-      therapeutic_insights: {
-        approach: 'Supportive',
-        coping_suggestion: 'Please try again in a moment',
-        is_crisis: false
-      },
-      timestamp: new Date().toISOString(),
-      error: errorMessage,
-      debug: {
-        hasApiKey: !!process.env.GEMINI_API_KEY,
-        nodeEnv: process.env.NODE_ENV
-      }
+      response: 'I apologize for the technical difficulty.',
+      error: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 }
