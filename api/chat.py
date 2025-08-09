@@ -1,26 +1,42 @@
-from http.server import BaseHTTPRequestHandler
+import json
 import sys
 import os
-import json
 from datetime import datetime
 
 # Add lib directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'lib'))
 
-# Global therapist instance for performance
+# Global therapist instance
 therapist = None
 
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        global therapist
-        
-        # Initialize therapist on first request
-        if therapist is None:
-            try:
-                from lib.gemini_ai_therapist import GeminiAITherapist
-                therapist = GeminiAITherapist()
-            except Exception as e:
-                self.send_error_response(500, {
+def handler(event, context):
+    global therapist
+    
+    # Handle CORS preflight
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+            },
+            'body': ''
+        }
+    
+    # Initialize therapist on first request
+    if therapist is None:
+        try:
+            from lib.gemini_ai_therapist import GeminiAITherapist
+            therapist = GeminiAITherapist()
+        except Exception as e:
+            return {
+                'statusCode': 500,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
+                'body': json.dumps({
                     'status': 'error',
                     'response': 'AI system initialization failed. Please try again.',
                     'stress_meter': {
@@ -33,86 +49,81 @@ class handler(BaseHTTPRequestHandler):
                     },
                     'error': str(e)
                 })
-                return
-        
-        try:
-            # Parse request body
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
+            }
+    
+    try:
+        # Parse request body
+        body = event.get('body', '{}')
+        if isinstance(body, str):
             data = json.loads(body)
-            user_message = data.get('message', '').strip()
+        else:
+            data = body
             
-            if not user_message:
-                self.send_error_response(400, {'error': 'Empty message'})
-                return
+        user_message = data.get('message', '').strip()
+        
+        if not user_message:
+            return {
+                'statusCode': 400,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
+                'body': json.dumps({'error': 'Empty message'})
+            }
 
-            # Capture therapeutic analysis
-            captured_response = {}
-            
-            def capture_analysis(emotion_data, response_data):
-                captured_response['emotion_data'] = emotion_data
-                captured_response['response_data'] = response_data
-                captured_response['ai_response'] = response_data.get('response')
+        # Capture therapeutic analysis
+        captured_response = {}
+        
+        def capture_analysis(emotion_data, response_data):
+            captured_response['emotion_data'] = emotion_data
+            captured_response['response_data'] = response_data
+            captured_response['ai_response'] = response_data.get('response')
 
-            # Temporarily replace display method to capture output
-            original_display = therapist.display_therapeutic_analysis
-            therapist.display_therapeutic_analysis = capture_analysis
-            
-            # Process conversation
-            therapist.process_therapeutic_conversation(user_message)
-            
-            # Restore original method
-            therapist.display_therapeutic_analysis = original_display
+        # Process conversation
+        original_display = therapist.display_therapeutic_analysis
+        therapist.display_therapeutic_analysis = capture_analysis
+        therapist.process_therapeutic_conversation(user_message)
+        therapist.display_therapeutic_analysis = original_display
 
-            emotion_data = captured_response.get('emotion_data', {})
-            response_data = captured_response.get('response_data', {})
-            current_stress = emotion_data.get('stress_level', 5)
-            
-            # Helper functions for stress meter
-            def get_stress_color(stress_level):
-                if stress_level >= 8:
-                    return 'red'
-                elif stress_level >= 6:
-                    return 'orange'
-                elif stress_level >= 4:
-                    return 'yellow'
-                else:
-                    return 'green'
-            
-            def get_stress_animation(stress_level):
-                if stress_level >= 8:
-                    return 'warning-pulse'
-                elif stress_level >= 6:
-                    return 'pulse-stress'
-                elif stress_level >= 4:
-                    return 'heartbeat'
-                else:
-                    return 'none'
-            
-            def get_stress_label(stress_level):
-                if stress_level >= 9:
-                    return 'Crisis'
-                elif stress_level >= 7:
-                    return 'High Stress'
-                elif stress_level >= 5:
-                    return 'Moderate'
-                elif stress_level >= 3:
-                    return 'Low Stress'
-                else:
-                    return 'Calm'
-            
-            # Determine trend
-            conversations = therapist.memory_manager.conversations
-            trend = 'stable'
-            if len(conversations) > 1:
-                prev_stress = conversations[-2].get('stress_level', 5)
-                if current_stress > prev_stress:
-                    trend = 'increasing'
-                elif current_stress < prev_stress:
-                    trend = 'decreasing'
-            
-            # Build response
-            response_body = {
+        emotion_data = captured_response.get('emotion_data', {})
+        response_data = captured_response.get('response_data', {})
+        current_stress = emotion_data.get('stress_level', 5)
+        
+        # Helper functions
+        def get_stress_color(stress_level):
+            if stress_level >= 8: return 'red'
+            elif stress_level >= 6: return 'orange'
+            elif stress_level >= 4: return 'yellow'
+            else: return 'green'
+        
+        def get_stress_animation(stress_level):
+            if stress_level >= 8: return 'warning-pulse'
+            elif stress_level >= 6: return 'pulse-stress'
+            elif stress_level >= 4: return 'heartbeat'
+            else: return 'none'
+        
+        def get_stress_label(stress_level):
+            if stress_level >= 9: return 'Crisis'
+            elif stress_level >= 7: return 'High Stress'
+            elif stress_level >= 5: return 'Moderate'
+            elif stress_level >= 3: return 'Low Stress'
+            else: return 'Calm'
+        
+        # Determine trend
+        conversations = therapist.memory_manager.conversations
+        trend = 'stable'
+        if len(conversations) > 1:
+            prev_stress = conversations[-2].get('stress_level', 5)
+            if current_stress > prev_stress: trend = 'increasing'
+            elif current_stress < prev_stress: trend = 'decreasing'
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
+            'body': json.dumps({
                 'status': 'success',
                 'response': captured_response.get('ai_response', 'I hear you and I\'m here to support you.'),
                 'emotion_analysis': {
@@ -133,17 +144,22 @@ class handler(BaseHTTPRequestHandler):
                 'therapeutic_insights': {
                     'approach': response_data.get('therapeutic_approach', 'Supportive'),
                     'coping_suggestion': response_data.get('coping_suggestion', ''),
-                    'is_crisis': current_stress >= 8 or emotion_data.get('risk_assessment') == 'crisis'
+                    'is_crisis': current_stress >= 8
                 },
                 'timestamp': datetime.now().isoformat()
-            }
-            
-            self.send_success_response(response_body)
-            
-        except Exception as e:
-            self.send_error_response(500, {
+            })
+        }
+        
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
+            'body': json.dumps({
                 'status': 'error',
-                'response': 'I apologize for the technical difficulty. I\'m still here to support you.',
+                'response': 'I apologize for the technical difficulty.',
                 'stress_meter': {
                     'current': 5, 
                     'percentage': 50,
@@ -154,28 +170,4 @@ class handler(BaseHTTPRequestHandler):
                 },
                 'error': str(e)
             })
-    
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.end_headers()
-    
-    def send_success_response(self, data):
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
-    
-    def send_error_response(self, status_code, data):
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
+        }
