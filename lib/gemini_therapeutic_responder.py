@@ -11,7 +11,7 @@ load_dotenv()
 class GeminiTherapeuticResponder:
     def __init__(self, model_name='gemini-1.5-flash-latest'):
         # Configure Gemini
-        api_key = os.getenv('GEMINI_API_KEY', 'AIzaSyDTQRNQ2zF2cEQSmX7QFmrVX3etnt6rGoc')
+        api_key = os.getenv('GEMINI_API_KEY')
         genai.configure(api_key=api_key)
         
         self.model = genai.GenerativeModel(model_name)
